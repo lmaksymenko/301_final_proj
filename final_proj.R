@@ -29,7 +29,7 @@ sec_var1 = as.data.frame(apply(sec_var, 2, Lag, k=1))[-1,] # capital Lag lags th
 #head(sec_var1)
 
 data = data.frame(spy_var, sec_var1)
-rownames(data) = 1:200
+data['index'] = 1:200
 
 
 
@@ -54,11 +54,14 @@ chart.TimeSeries(train, legend.loc = "bottomright", main = "Summary of Returns")
 ggplot(df, aes(index, value)) +
   geom_line(aes(colour = series))
 
-as.POSIXct(train$index)
 
 
 ###PCA (data exploration)
-prdata = data[-1] #without direction
+
+data = data[, -which(names(data) == 'index')]
+
+
+prdata = data[-1] #without SPY
 pr.out=prcomp(prdata,scale=TRUE) #Make sure you scale the vectors for principal component analysis
 
 pr.var=pr.out$sdev^2 #Variance explained
