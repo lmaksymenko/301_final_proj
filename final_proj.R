@@ -10,7 +10,7 @@ library(quantmod)
 library(randomForest)
 library(ggplot2)
 library(reshape2)
-
+library(keras)
 
 ### ### SETUP ### ###
 
@@ -32,8 +32,8 @@ data = data.frame(spy_var, sec_var1)
 rownames(data) = 1:200
 
 
-### ### EDA ### ###
 
+### ### EDA ### ###
 
 df <- melt(data, id.vars  = 'index', variable.name = 'series')
 
@@ -41,7 +41,6 @@ df <- melt(data, id.vars  = 'index', variable.name = 'series')
 ggplot(df, aes(index, value)) +
   geom_line(aes(colour = series)) + 
   ggtitle("Value at Risk Over Time")
-
 
 
 #training data plot 
@@ -57,6 +56,7 @@ ggplot(df, aes(index, value)) +
 
 as.POSIXct(train$index)
 
+
 ###PCA (data exploration)
 prdata = data[-1] #without direction
 pr.out=prcomp(prdata,scale=TRUE) #Make sure you scale the vectors for principal component analysis
@@ -71,6 +71,7 @@ abline(h=0.8, col = "red")
 
 pr.out$rotation
 biplot(pr.out,scale=0)
+
 
 
 ### ### MODELING ### ###
@@ -99,23 +100,78 @@ cat('LINEAR MODEL \n',
     'Test MSE: ', linmod.test.mse, '\n')
 
 
-
 ###RANDOM FOREST
 
 rf.reg = randomForest(spy_var~.,data=data, subset = trainsub, 
                       ntree=100,mtry=3,importance=TRUE, na.action = na.roughfix) #mtry is number of variables 
-rf.reg #Gives both the number of variables at each split but also provides out-of-bag estimate of error rate
 
-rf.train.mse = mean((data$spy_var[trainsub] - predict(rf.reg, data[trainsub,]))^2) #TRAIN MSE
-rf.train.mse
+rf.train.mse = mean((data$spy_var[trainsub] - predict(rf.reg, data[trainsub,]))^2)
 
 spyvar.rf.pred = predict(rf.reg, data[-trainsub,]) # Predict with bagging
-rf.MSE = mean((data$spy_var[-trainsub] - spyvar.rf.pred)^2)
-rf.MSE #Test MSE
+rf.test.mes = mean((data$spy_var[-trainsub] - spyvar.rf.pred)^2)
 
-rf.reg$importance # MeanDecreaseGini is MDI
-# MeanDecreaseAccuracy is MDA (based on bagging errors)
+
+cat('RANDOM FOREST MODEL \n',
+    'Summary: \n', 
+    strrep('-', 80),
+    sapply(capture.output(rf.reg), function(x) paste(x, '\n')), '\n',
+    strrep('-', 80), '\n', 
+    'Importance: \n', 
+    strrep('-', 80), '\n',
+    #Gives both the number of variables at each split but also provides 
+    #out-of-bag estimate of error rate
+    # MeanDecreaseGini is MDI
+    # MeanDecreaseAccuracy is MDA (based on bagging errors)
+    sapply(capture.output(rf.reg$importance), function(x) paste(x, '\n')), '\n',
+    strrep('-', 80), '\n', 
+    'Train MSE: ', rf.train.mse, '\n',
+    'Test MSE: ', rf.test.mes, '\n')
+
 varImpPlot(rf.reg)
+
+###NEURON ACTIVATION NETWORK
+#https://www.youtube.com/watch?reload=9&v=roUIWGr9rqo
+
+#Params
+HIDDEN_SIZE <- 128
+BATCH_SIZE <- 128
+LAYERS <- 2
+
+x_train = as.matrix(subset(data[trainsub,], select = -c(spy_var)))
+y_train = as.matrix(data[trainsub, "spy_var"])
+
+#Build Model
+model <- keras_model_sequential() 
+
+model %>%
+  #layer_lstm(HIDDEN_SIZE, input_shape=c(MAXLEN, length(char_table))) %>%
+  layer_dense(HIDDEN_SIZE, activation = 'relu', input_shape = c(11))
+  
+  for(i in 1:LAYERS){
+    model %>% layer_dense(HIDDEN_SIZE, activation = 'relu')
+  }
+    
+  model %>% layer_dense(1, activation = 'relu')
+  
+  
+  
+model %>% compile(
+  loss = "categorical_crossentropy", 
+  optimizer = "adam", 
+  metrics = "accuracy"
+)
+###
+
+model %>% fit( 
+  x = x_train, 
+  y = y_train, 
+  batch_size = BATCH_SIZE, 
+  epochs = 70
+)
+
+x_test = as.matrix(subset(data[-trainsub,], select = -c(spy_var)))
+
+result <- predict(model, x_test)
 
 
 
