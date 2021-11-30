@@ -15,25 +15,40 @@ library(keras)
 ### ### SETUP ### ###
 
 train = read.csv("train_data.csv", row.names = "X")
+test = read.csv("test_data.csv", row.names = "X")
 
 #tail(train)
 
-vec = c(6, rep(5, 200))
+vec = c(6, rep(5, 200)) #1006
 spl = split(train, rep(1:201,vec))
 splvar = lapply(spl, VaR)
 sec_var = do.call(rbind.data.frame, splvar)
-spy_var = sec_var[-1,1]
+spy_var_train = sec_var[-1,1]
 sec_var = sec_var[,-1] #gets rid of SPY
-sec_var1 = as.data.frame(apply(sec_var, 2, Lag, k=1))[-1,] # capital Lag lags the data forward
+sec_var1_train = as.data.frame(apply(sec_var, 2, Lag, k=1))[-1,] # capital Lag lags the data forward
 
+vec = c(8, rep(5, 720/5)) #728 rows
+spl = split(test, rep(1:(1+720/5),vec))
+splvar = lapply(spl, VaR)
+sec_var = do.call(rbind.data.frame, splvar)
+spy_var_test = sec_var[-1,1]
+sec_var = sec_var[,-1] #gets rid of SPY
+sec_var1_test = as.data.frame(apply(sec_var, 2, Lag, k=1))[-1,]
 #head(sec_var1)
 
-data = data.frame(spy_var, sec_var1)
-data['index'] = 1:200
+data_train = data.frame(spy_var_train, sec_var1_train)
+data_train['index'] = 1:200
 
+data_test = data.frame(spy_var_test, sec_var1_test)
+
+
+head(data_test)
 
 
 ### ### EDA ### ###
+
+data_test['index'] = 1:144
+data_train['index'] = 1:200
 
 df <- melt(data, id.vars  = 'index', variable.name = 'series')
 
@@ -80,18 +95,17 @@ biplot(pr.out,scale=0)
 ### ### MODELING ### ###
 
 ###TRAIN TEST SPLIT
-data  = na.exclude(data)
-trainsub  = sample(nrow(data),0.8*nrow(data),replace=FALSE)
-
+data_test = na.exclude(data_test)
+data_train = na.exclude(data_train)
 
 ###LINEAR MODEL
 
-linmod = glm(spy_var~., data=data, subset = trainsub)
+linmod = glm(spy_var_train~., data=data_train)
 
-linmod.train.mse = mean((data$spy_var[trainsub] - predict(linmod, data[trainsub,]))^2)
+linmod.train.mse = mean((data_train$spy_var_train - predict(linmod, data_train))^2)
 
-pred = predict(linmod, data[-trainsub,])
-linmod.test.mse = mean((pred - data$spy_var[-trainsub])^2)
+pred = predict(linmod, data_test)
+linmod.test.mse = mean((pred - data_test$spy_var_test)^2)
 
 
 cat('LINEAR MODEL \n',
@@ -105,13 +119,13 @@ cat('LINEAR MODEL \n',
 
 ###RANDOM FOREST
 
-rf.reg = randomForest(spy_var~.,data=data, subset = trainsub, 
+rf.reg = randomForest(spy_var_train~.,data=data_train, 
                       ntree=100,mtry=3,importance=TRUE, na.action = na.roughfix) #mtry is number of variables 
 
-rf.train.mse = mean((data$spy_var[trainsub] - predict(rf.reg, data[trainsub,]))^2)
+rf.train.mse = mean((data_train$spy_var_train - predict(rf.reg, data_train))^2)
 
-spyvar.rf.pred = predict(rf.reg, data[-trainsub,]) # Predict with bagging
-rf.test.mes = mean((data$spy_var[-trainsub] - spyvar.rf.pred)^2)
+spyvar.rf.pred = predict(rf.reg, data_test) # Predict with bagging
+rf.test.mes = mean((data_test$spy_var_test - spyvar.rf.pred)^2)
 
 
 cat('RANDOM FOREST MODEL \n',
@@ -140,8 +154,8 @@ HIDDEN_SIZE <- 128
 BATCH_SIZE <- 128
 LAYERS <- 2
 
-x_train = as.matrix(subset(data[trainsub,], select = -c(spy_var)))
-y_train = as.matrix(data[trainsub, "spy_var"])
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train)))
+y_train = as.matrix(data_train[, "spy_var_train"])
 
 #Build Model
 model <- keras_model_sequential() 
@@ -172,7 +186,7 @@ model %>% fit(
   epochs = 70
 )
 
-x_test = as.matrix(subset(data[-trainsub,], select = -c(spy_var)))
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test)))
 
 result <- predict(model, x_test)
 
