@@ -4,13 +4,14 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 #5 day VaR of the market
 
 
-###IMPORTS
+###IMPORTS (not exports)
 library(PerformanceAnalytics)
 library(quantmod)
 library(randomForest)
 library(ggplot2)
 library(reshape2)
 library(keras)
+library(rmgarch)
 
 ### ### SETUP ### ###
 
