@@ -116,6 +116,11 @@ cat('LINEAR MODEL \n',
     'Train MSE: ', linmod.train.mse, '\n',
     'Test MSE: ', linmod.test.mse, '\n')
 
+plot(data_test$spy_var_test, type = "l", main = "LINEAR MODEL VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(pred, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
 
 ###RANDOM FOREST
 
@@ -145,6 +150,11 @@ cat('RANDOM FOREST MODEL \n',
     'Test MSE: ', rf.test.mes, '\n')
 
 varImpPlot(rf.reg)
+
+plot(data_test$spy_var_test, type = "l", main = "RANDOM FOREST VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(spyvar.rf.pred, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
 ###NEURON ACTIVATION NETWORK
 #https://www.youtube.com/watch?reload=9&v=roUIWGr9rqo
@@ -189,6 +199,12 @@ model %>% fit(
 x_test = as.matrix(subset(data_test, select = -c(spy_var_test)))
 
 result <- predict(model, x_test)
+
+
+plot(data_test$spy_var_test, type = "l", main = "RANDOM FOREST VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(result, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
 
 
