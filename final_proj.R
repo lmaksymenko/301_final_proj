@@ -235,3 +235,17 @@ legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "
 
 
 
+###DCC-GARCH
+spec = ugarchspec(variance.model = list(model = 'sGARCH', garchOrder = c(1,1)),
+                  mean.model = list(armaOrder = c(1, 1)))
+
+mspec = multispec(replicate(11, spec))
+dspec = dccspec(mspec)
+
+dat = dccfilter(dspec, data = subset(data_train, select = -c(spy_var_train, index)))
+dcc = dccfit(dspec, )
+
+result = dccforecast(dcc)
+
+
+
