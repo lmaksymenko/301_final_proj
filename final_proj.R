@@ -168,9 +168,8 @@ legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "
 ###NEURON ACTIVATION NETWORKS
 #https://www.youtube.com/watch?reload=9&v=roUIWGr9rqo
 
-do_nn <- function()
 
-
+##NN LINEAR
 
 #Params
 HIDDEN_SIZE <- 20
@@ -178,7 +177,6 @@ BATCH_SIZE <- 20
 LAYERS <- 5
 
 x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
-#y_train = as.matrix(data_train[, "spy_var_train"])
 y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
 
 x_train[4]
@@ -228,10 +226,138 @@ nn.test.mse
 
 #Results
 
+plot(data_test$spy_var_test, type = "l", main = "NN LINEAR VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(result, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+
+##NN ReLU
+
+#Params
+HIDDEN_SIZE <- 20
+BATCH_SIZE <- 20
+LAYERS <- 5
+
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
+y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
+
+x_train[4]
+
+nrow(y_train)
+
+#Build Model
+model <- keras_model_sequential() 
+
+model %>%
+  #layer_lstm(HIDDEN_SIZE, input_shape=c(MAXLEN, length(char_table))) %>%
+  layer_dense(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train))
+
+for(i in 1:LAYERS){
+  model %>% layer_dense(HIDDEN_SIZE, activation = 'sigmoid')
+}
+
+model %>% layer_dense(1, activation = 'linear')
+
+
+model %>% compile(
+  loss = "mean_squared_error", 
+  optimizer = "adam", 
+  metrics = "accuracy"
+)
+
+###
+
+model %>% fit( 
+  x = x_train, 
+  y = y_train, 
+  batch_size = BATCH_SIZE, 
+  epochs = 15
+)
+
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
+
+result <- predict(model, x_test)
+
+#data_train['spy_var_train']
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse
+
+data_test['spy_var_test']
+nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
+nn.test.mse
+
+#Results
+
+plot(data_test$spy_var_test, type = "l", main = "NN ReLU VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(result, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+
+##LSTM
+
+#Params
+HIDDEN_SIZE <- 20
+BATCH_SIZE <- 10
+LAYERS <- 10
+
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
+y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
+
+x_train[4]
+
+nrow(y_train)
+
+#Build Model
+model <- keras_model_sequential() 
+
+model %>%
+  layer_lstm(HIDDEN_SIZE, input_shape = ncol(x_train)) %>%
+  #layer_dense(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train))
+
+for(i in 1:LAYERS){
+  model %>% layer_lstm(HIDDEN_SIZE, activation = 'relu')
+}
+
+model %>% layer_dense(1, activation = 'linear')
+
+
+model %>% compile(
+  loss = "mean_squared_error", 
+  optimizer = "adam", 
+  metrics = "accuracy"
+)
+
+###
+
+model %>% fit( 
+  x = x_train, 
+  y = y_train, 
+  batch_size = BATCH_SIZE, 
+  epochs = 15
+)
+
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
+
+result <- predict(model, x_test)
+
+#data_train['spy_var_train']
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse
+
+data_test['spy_var_test']
+nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
+nn.test.mse
+
+#Results
+
 plot(data_test$spy_var_test, type = "l", main = "NN VaR Predicted vs Empirical",
      ylab = "VaR")
 lines(result, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+
 
 
 
