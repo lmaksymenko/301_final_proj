@@ -148,6 +148,8 @@ plot(spy_uni_test$spy_var_test, type = "l", main = "LINEAR MODEL UniVar VaR Pred
 lines(pred, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
+
+
 ###RANDOM FOREST
 
 rf.reg = randomForest(spy_var_train~.,data=data_train, 
@@ -184,6 +186,7 @@ lines(spyvar.rf.pred, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
 
+
 #####Uni variate RF model 
 
 rf.reg = randomForest(spy_var_train~.,data=spy_uni_train, 
@@ -201,44 +204,43 @@ legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "
 
 
 
+
 ###NEURON ACTIVATION NETWORKS
 #https://www.youtube.com/watch?reload=9&v=roUIWGr9rqo
 
-##NN LINEAR UNIVAR
-
-#Params
+###All Network Params
 HIDDEN_SIZE <- 5
 BATCH_SIZE <- 20
 LAYERS <- 10
 
-x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))[,1]
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))
+x_train_u = xtrain[,1]
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
+x_test_u = x_test[,1]
 y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
 
-x_train[4]
 
-nrow(y_train)
+
+##NN LINEAR UNIVAR
+
 
 #Build Model
 model <- keras_model_sequential() 
 
 model %>%
-  #layer_lstm(HIDDEN_SIZE, input_shape=c(MAXLEN, length(char_table))) %>%
-  layer_dense(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train))
+  layer_dense(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train_u))
 
-for(i in 1:LAYERS){
-  model %>% layer_dense(HIDDEN_SIZE, activation = 'linear')
-}
+  for(i in 1:LAYERS){
+    model %>% layer_dense(HIDDEN_SIZE, activation = 'linear')
+  }
 
-model %>% layer_dense(1, activation = 'linear')
-
+  model %>% layer_dense(1, activation = 'linear')
 
 model %>% compile(
   loss = "mean_squared_error", 
   optimizer = "adam", 
   metrics = "accuracy"
 )
-
-###
 
 model %>% fit( 
   x = x_train, 
@@ -247,15 +249,11 @@ model %>% fit(
   epochs = 15
 )
 
-x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))[,1]
+result <- predict(model, x_test_u)
 
-result <- predict(model, x_test)
-
-#data_train['spy_var_train']
-nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train_u)) ^ 2) 
 nn.train.mse
 
-data_test['spy_var_test']
 nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
 nn.test.mse
 
@@ -267,27 +265,12 @@ lines(result, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
 
-
-
 ##NN LINEAR MULTIVAR
-
-#Params
-HIDDEN_SIZE <- 5
-BATCH_SIZE <- 20
-LAYERS <- 10
-
-x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
-y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
-
-x_train[4]
-
-nrow(y_train)
 
 #Build Model
 model <- keras_model_sequential() 
 
 model %>%
-  #layer_lstm(HIDDEN_SIZE, input_shape=c(MAXLEN, length(char_table))) %>%
   layer_dense(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train))
   
   for(i in 1:LAYERS){
@@ -296,14 +279,11 @@ model %>%
     
   model %>% layer_dense(1, activation = 'linear')
   
-  
 model %>% compile(
   loss = "mean_squared_error", 
   optimizer = "adam", 
   metrics = "accuracy"
 )
-
-###
 
 model %>% fit( 
   x = x_train, 
@@ -312,15 +292,11 @@ model %>% fit(
   epochs = 15
 )
 
-x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
-
 result <- predict(model, x_test)
 
-#data_train['spy_var_train']
 nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
 nn.train.mse
 
-data_test['spy_var_test']
 nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
 nn.test.mse
 
@@ -335,38 +311,23 @@ legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "
 
 ##LSTM Uni
 
-#Params
-HIDDEN_SIZE <- 5
-BATCH_SIZE <- 20
-LAYERS <- 10
-
-x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))[,1]
-y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
-
-x_train[4]
-
-nrow(y_train)
-
 #Build Model
 model <- keras_model_sequential() 
 
 model %>%
-  layer_lstm(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train)) %>%
+  layer_lstm(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train_u)) %>%
   
   for(i in 1:LAYERS){
     model %>% layer_lstm(HIDDEN_SIZE, activation = 'sigmoid')
   }
 
-model %>% layer_dense(1, activation = 'linear')
-
+  model %>% layer_dense(1, activation = 'linear')
 
 model %>% compile(
   loss = "mean_squared_error", 
   optimizer = "adam", 
   metrics = "accuracy"
 )
-
-###
 
 model %>% fit( 
   x = x_train, 
@@ -375,16 +336,11 @@ model %>% fit(
   epochs = 15
 )
 
-x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))[,1]
+result <- predict(model, x_test_u)
 
-result <- predict(model, x_test)
-
-#data_train['spy_var_train']
-nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train_u)) ^ 2) 
 nn.train.mse
 
-
-data_test['spy_var_test']
 nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
 nn.test.mse
 
@@ -398,38 +354,23 @@ legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "
 
 ##LSTM Multi
 
-#Params
-HIDDEN_SIZE <- 5
-BATCH_SIZE <- 20
-LAYERS <- 10
-
-x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
-y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
-
-x_train[4]
-
-nrow(y_train)
-
 #Build Model
 model <- keras_model_sequential() 
 
 model %>%
   layer_lstm(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train)) %>%
 
-for(i in 1:LAYERS){
-  model %>% layer_lstm(HIDDEN_SIZE, activation = 'sigmoid')
-}
-
-model %>% layer_dense(1, activation = 'linear')
-
+  for(i in 1:LAYERS){
+    model %>% layer_lstm(HIDDEN_SIZE, activation = 'sigmoid')
+  }
+  
+  model %>% layer_dense(1, activation = 'linear')
 
 model %>% compile(
   loss = "mean_squared_error", 
   optimizer = "adam", 
   metrics = "accuracy"
 )
-
-###
 
 model %>% fit( 
   x = x_train, 
@@ -438,15 +379,11 @@ model %>% fit(
   epochs = 15
 )
 
-x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
-
 result <- predict(model, x_test)
 
-#data_train['spy_var_train']
 nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
 nn.train.mse
 
-data_test['spy_var_test']
 nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
 nn.test.mse
 
@@ -457,8 +394,6 @@ plot(data_test$spy_var_test, type = "l", main = "LSTM Multivariate VaR Predicted
      ylab = "VaR")
 lines(result, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
-
-
 
 
 
