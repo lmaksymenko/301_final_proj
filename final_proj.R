@@ -214,7 +214,7 @@ BATCH_SIZE <- 20
 LAYERS <- 10
 
 x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))
-x_train_u = xtrain[,1]
+x_train_u = x_train[,1]
 x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
 x_test_u = x_test[,1]
 y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
@@ -243,13 +243,13 @@ model %>% compile(
 )
 
 model %>% fit( 
-  x = x_train, 
+  x = x_train_u, 
   y = y_train, 
   batch_size = BATCH_SIZE, 
   epochs = 15
 )
 
-result <- predict(model, x_test_u)
+result <- predict(model, x_test)
 
 nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train_u)) ^ 2) 
 nn.train.mse
@@ -259,10 +259,15 @@ nn.test.mse
 
 #Results
 
-plot(data_test$spy_var_test, type = "l", main = "Univariate Linear NN VaR Predicted vs Empirical",
+plot(-data_test$spy_var_test, type = "l", main = "Univariate Linear NN VaR Predicted vs Empirical",
      ylab = "VaR")
-lines(result, lty = 2, col = "blue")
-legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+lines(-result, lty = 2, col = "blue")
+legend(80, y = 0.06, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+#> nn.train.mse
+#[1] 0.0002572223
+#> nn.test.mse
+#[1] 0.0004383612
 
 
 ##NN LINEAR MULTIVAR
@@ -302,11 +307,15 @@ nn.test.mse
 
 #Results
 
-plot(data_test$spy_var_test, type = "l", main = "Multivariate Linear NN VaR Predicted vs Empirical",
+plot(-data_test$spy_var_test, type = "l", main = "Multivariate Linear NN VaR Predicted vs Empirical",
      ylab = "VaR")
-lines(result, lty = 2, col = "blue")
-legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+lines(-result, lty = 2, col = "blue")
+legend(80, y = 0.06, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
+#nn.train.mse
+#[1] 0.0002693826
+#> nn.test.mse
+#[1] 0.0003201334
 
 
 ##LSTM Uni
@@ -330,7 +339,7 @@ model %>% compile(
 )
 
 model %>% fit( 
-  x = x_train, 
+  x = x_train_u, 
   y = y_train, 
   batch_size = BATCH_SIZE, 
   epochs = 15
@@ -346,10 +355,17 @@ nn.test.mse
 
 #Results
 
-plot(data_test$spy_var_test, type = "l", main = "LSTM Univariate VaR Predicted vs Empirical",
+plot(-data_test$spy_var_test, type = "l", main = "LSTM Univariate VaR Predicted vs Empirical",
      ylab = "VaR")
-lines(result, lty = 2, col = "blue")
-legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+lines(-result, lty = 2, col = "blue")
+legend(80, y = 0.07, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+#> nn.train.mse
+#[1] 0.0004003482
+
+#> nn.test.mse
+#[1] 0.0005153547
+
 
 
 ##LSTM Multi
@@ -389,12 +405,17 @@ nn.test.mse
 
 #Results
 
-plot(data_test$spy_var_test, type = "l", main = "LSTM Multivariate VaR Predicted vs Empirical",
-
+plot(-data_test$spy_var_test, type = "l", main = "LSTM Multivariate VaR Predicted vs Empirical",
      ylab = "VaR")
-lines(result, lty = 2, col = "blue")
-legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+lines(-result, lty = 2, col = "blue")
+legend(80, y = 0.07, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
+ 
+#> nn.train.mse
+#[1] 0.0007878589
+
+#> nn.test.mse
+#[1]  0.0008731584
 
 
 ###DCC-GARCH
