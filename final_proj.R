@@ -4,13 +4,14 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 #5 day VaR of the market
 
 
-###IMPORTS
+###IMPORTS (not exports)
 library(PerformanceAnalytics)
 library(quantmod)
 library(randomForest)
 library(ggplot2)
 library(reshape2)
 library(keras)
+library(rmgarch)
 
 ### ### SETUP ### ###
 
@@ -34,13 +35,17 @@ sec_var = do.call(rbind.data.frame, splvar)
 spy_var_test = sec_var[-1,1]
 sec_var = sec_var[,-1] #gets rid of SPY
 sec_var1_test = as.data.frame(apply(sec_var, 2, Lag, k=1))[-1,]
+
 #head(sec_var1)
 
 data_train = data.frame(spy_var_train, sec_var1_train)
-data_train['index'] = 1:200
-
 data_test = data.frame(spy_var_test, sec_var1_test)
 
+data_train = na.omit(data_train)
+data_test = na.omit(data_test)
+
+data_train['index'] = 1:nrow(data_train)
+data_test['index'] = 1:nrow(data_test)
 
 head(data_test)
 
@@ -49,9 +54,6 @@ spy_uni_train = as.data.frame(na.exclude(cbind(spy_var_train, Lag(spy_var_train,
 spy_uni_test = as.data.frame(na.exclude(cbind(spy_var_test, Lag(spy_var_test, k=1))))
 
 ### ### EDA ### ###
-
-data_test['index'] = 1:144
-data_train['index'] = 1:200
 
 df <- melt(data, id.vars  = 'index', variable.name = 'series')
 
@@ -111,6 +113,8 @@ pred = predict(linmod, data_test)
 linmod.test.mse = mean((pred - data_test$spy_var_test)^2)
 
 
+#Results
+
 cat('LINEAR MODEL \n',
     'Summary: \n', 
     strrep('-', 80),
@@ -118,6 +122,7 @@ cat('LINEAR MODEL \n',
     strrep('-', 80), '\n', 
     'Train MSE: ', linmod.train.mse, '\n',
     'Test MSE: ', linmod.test.mse, '\n')
+
 
 plot(data_test$spy_var_test, type = "l", main = "LINEAR MODEL MultiVar VaR Predicted vs Empirical",
      ylab = "VaR")
@@ -153,6 +158,7 @@ rf.train.mse = mean((data_train$spy_var_train - predict(rf.reg, data_train))^2)
 spyvar.rf.pred = predict(rf.reg, data_test) # Predict with bagging
 rf.test.mes = mean((data_test$spy_var_test - spyvar.rf.pred)^2)
 
+#Results
 
 cat('RANDOM FOREST MODEL \n',
     'Summary: \n', 
@@ -193,55 +199,288 @@ plot(spy_uni_test$spy_var_test, type = "l", main = "RANDOM FOREST UniVar VaR Pre
 lines(spyvar.rf.pred, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
-###NEURON ACTIVATION NETWORK
+
+
+###NEURON ACTIVATION NETWORKS
 #https://www.youtube.com/watch?reload=9&v=roUIWGr9rqo
 
-#Params
-HIDDEN_SIZE <- 128
-BATCH_SIZE <- 128
-LAYERS <- 2
+##NN LINEAR UNIVAR
 
-x_train = as.matrix(subset(data_train, select = -c(spy_var_train)))
-y_train = as.matrix(data_train[, "spy_var_train"])
+#Params
+HIDDEN_SIZE <- 5
+BATCH_SIZE <- 20
+LAYERS <- 10
+
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))[,1]
+y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
+
+x_train[4]
+
+nrow(y_train)
 
 #Build Model
 model <- keras_model_sequential() 
 
 model %>%
   #layer_lstm(HIDDEN_SIZE, input_shape=c(MAXLEN, length(char_table))) %>%
-  layer_dense(HIDDEN_SIZE, activation = 'relu', input_shape = c(11))
-  
-  for(i in 1:LAYERS){
-    model %>% layer_dense(HIDDEN_SIZE, activation = 'relu')
-  }
-    
-  model %>% layer_dense(1, activation = 'relu')
-  
-  
-  
+  layer_dense(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train))
+
+for(i in 1:LAYERS){
+  model %>% layer_dense(HIDDEN_SIZE, activation = 'linear')
+}
+
+model %>% layer_dense(1, activation = 'linear')
+
+
 model %>% compile(
-  loss = "categorical_crossentropy", 
+  loss = "mean_squared_error", 
   optimizer = "adam", 
   metrics = "accuracy"
 )
+
 ###
 
 model %>% fit( 
   x = x_train, 
   y = y_train, 
   batch_size = BATCH_SIZE, 
-  epochs = 70
+  epochs = 15
 )
 
-x_test = as.matrix(subset(data_test, select = -c(spy_var_test)))
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))[,1]
 
 result <- predict(model, x_test)
 
+#data_train['spy_var_train']
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse
 
-plot(data_test$spy_var_test, type = "l", main = "NEURAL NETWORK MultiVar VaR Predicted vs Empirical",
+data_test['spy_var_test']
+nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
+nn.test.mse
+
+#Results
+
+plot(data_test$spy_var_test, type = "l", main = "Univariate Linear NN VaR Predicted vs Empirical",
      ylab = "VaR")
 lines(result, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
 
 
+
+##NN LINEAR MULTIVAR
+
+#Params
+HIDDEN_SIZE <- 5
+BATCH_SIZE <- 20
+LAYERS <- 10
+
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
+y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
+
+x_train[4]
+
+nrow(y_train)
+
+#Build Model
+model <- keras_model_sequential() 
+
+model %>%
+  #layer_lstm(HIDDEN_SIZE, input_shape=c(MAXLEN, length(char_table))) %>%
+  layer_dense(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train))
+  
+  for(i in 1:LAYERS){
+    model %>% layer_dense(HIDDEN_SIZE, activation = 'linear')
+  }
+    
+  model %>% layer_dense(1, activation = 'linear')
+  
+  
+model %>% compile(
+  loss = "mean_squared_error", 
+  optimizer = "adam", 
+  metrics = "accuracy"
+)
+
+###
+
+model %>% fit( 
+  x = x_train, 
+  y = y_train, 
+  batch_size = BATCH_SIZE, 
+  epochs = 15
+)
+
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
+
+result <- predict(model, x_test)
+
+#data_train['spy_var_train']
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse
+
+data_test['spy_var_test']
+nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
+nn.test.mse
+
+#Results
+
+plot(data_test$spy_var_test, type = "l", main = "Multivariate Linear NN VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(result, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+
+
+##LSTM Uni
+
+#Params
+HIDDEN_SIZE <- 5
+BATCH_SIZE <- 20
+LAYERS <- 10
+
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))[,1]
+y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
+
+x_train[4]
+
+nrow(y_train)
+
+#Build Model
+model <- keras_model_sequential() 
+
+model %>%
+  layer_lstm(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train)) %>%
+  
+  for(i in 1:LAYERS){
+    model %>% layer_lstm(HIDDEN_SIZE, activation = 'sigmoid')
+  }
+
+model %>% layer_dense(1, activation = 'linear')
+
+
+model %>% compile(
+  loss = "mean_squared_error", 
+  optimizer = "adam", 
+  metrics = "accuracy"
+)
+
+###
+
+model %>% fit( 
+  x = x_train, 
+  y = y_train, 
+  batch_size = BATCH_SIZE, 
+  epochs = 15
+)
+
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))[,1]
+
+result <- predict(model, x_test)
+
+#data_train['spy_var_train']
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse
+
+
+data_test['spy_var_test']
+nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
+nn.test.mse
+
+#Results
+
+plot(data_test$spy_var_test, type = "l", main = "LSTM Univariate VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(result, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+
+##LSTM Multi
+
+#Params
+HIDDEN_SIZE <- 5
+BATCH_SIZE <- 20
+LAYERS <- 10
+
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
+y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
+
+x_train[4]
+
+nrow(y_train)
+
+#Build Model
+model <- keras_model_sequential() 
+
+model %>%
+  layer_lstm(HIDDEN_SIZE, activation = 'linear', input_shape = ncol(x_train)) %>%
+
+for(i in 1:LAYERS){
+  model %>% layer_lstm(HIDDEN_SIZE, activation = 'sigmoid')
+}
+
+model %>% layer_dense(1, activation = 'linear')
+
+
+model %>% compile(
+  loss = "mean_squared_error", 
+  optimizer = "adam", 
+  metrics = "accuracy"
+)
+
+###
+
+model %>% fit( 
+  x = x_train, 
+  y = y_train, 
+  batch_size = BATCH_SIZE, 
+  epochs = 15
+)
+
+x_test = as.matrix(subset(data_test, select = -c(spy_var_test, index)))
+
+result <- predict(model, x_test)
+
+#data_train['spy_var_train']
+nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
+nn.train.mse
+
+data_test['spy_var_test']
+nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
+nn.test.mse
+
+#Results
+
+plot(data_test$spy_var_test, type = "l", main = "LSTM Multivariate VaR Predicted vs Empirical",
+
+     ylab = "VaR")
+lines(result, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+
+
+
+
+###DCC-GARCH
+x_train = as.matrix(subset(data_train, select = -c(spy_var_train, index)))#, byrow = TRUE)
+y_train = as.matrix(subset(data_train, select = c(spy_var_train)))
+
+
+uspec = ugarchspec(variance.model = list(model = 'sGARCH', garchOrder = c(1,1)),
+                  mean.model = list(armaOrder = c(1, 0)))
+
+mspec = multispec(replicate(11, uspec))
+dspec = dccspec(mspec)
+
+#dat = dccfilter(dspec, data = subset(data_train, select = -c(spy_var_train, index)))
+
+dcc = dccfit(dspec, data = subset(data_train, select = -c(spy_var_train, index)))
+
+result = dccforecast(dcc, n.roll = 1)
+result
+
+#result = ugarchforecast()
+
+dspec
+  
