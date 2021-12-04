@@ -50,6 +50,9 @@ data_test['index'] = 1:nrow(data_test)
 head(data_test)
 
 
+spy_uni_train = as.data.frame(na.exclude(cbind(spy_var_train, Lag(spy_var_train, k=1))))
+spy_uni_test = as.data.frame(na.exclude(cbind(spy_var_test, Lag(spy_var_test, k=1))))
+
 ### ### EDA ### ###
 
 df <- melt(data, id.vars  = 'index', variable.name = 'series')
@@ -121,12 +124,29 @@ cat('LINEAR MODEL \n',
     'Test MSE: ', linmod.test.mse, '\n')
 
 
-
-plot(data_test$spy_var_test, type = "l", main = "LINEAR MODEL VaR Predicted vs Empirical",
+plot(data_test$spy_var_test, type = "l", main = "LINEAR MODEL MultiVar VaR Predicted vs Empirical",
      ylab = "VaR")
 lines(pred, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
+names(data_train)
+
+
+
+######### Univariate LM 
+
+linmod = glm(spy_var_train~., data=spy_uni_train)
+
+linmod.train.mse = mean((spy_uni_train$spy_var_train - predict(linmod, spy_uni_train))^2)
+
+pred = predict(linmod, spy_uni_test)
+linmod.test.mse = mean((pred - spy_uni_test$spy_var_test)^2)
+
+
+plot(spy_uni_test$spy_var_test, type = "l", main = "LINEAR MODEL UniVar VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(pred, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
 
 ###RANDOM FOREST
 
@@ -158,7 +178,23 @@ cat('RANDOM FOREST MODEL \n',
 
 varImpPlot(rf.reg)
 
-plot(data_test$spy_var_test, type = "l", main = "RANDOM FOREST VaR Predicted vs Empirical",
+plot(data_test$spy_var_test, type = "l", main = "RANDOM FOREST MultiVar VaR Predicted vs Empirical",
+     ylab = "VaR")
+lines(spyvar.rf.pred, lty = 2, col = "blue")
+legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
+
+
+#####Uni variate RF model 
+
+rf.reg = randomForest(spy_var_train~.,data=spy_uni_train, 
+                      ntree=100,mtry=1,importance=TRUE, na.action = na.roughfix) #mtry is number of variables 
+
+rf.train.mse = mean((spy_uni_train$spy_var_train - predict(rf.reg, spy_uni_train))^2)
+
+spyvar.rf.pred = predict(rf.reg, spy_uni_test) # Predict with bagging
+rf.test.mes = mean((spy_uni_test$spy_var_test - spyvar.rf.pred)^2)
+
+plot(spy_uni_test$spy_var_test, type = "l", main = "RANDOM FOREST UniVar VaR Predicted vs Empirical",
      ylab = "VaR")
 lines(spyvar.rf.pred, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
@@ -347,6 +383,7 @@ result <- predict(model, x_test)
 nn.train.mse = mean((data_train[,'spy_var_train'] - predict(model, x_train)) ^ 2) 
 nn.train.mse
 
+
 data_test['spy_var_test']
 nn.test.mse = mean((data_test[,'spy_var_test'] - result) ^ 2) 
 nn.test.mse
@@ -416,6 +453,7 @@ nn.test.mse
 #Results
 
 plot(data_test$spy_var_test, type = "l", main = "LSTM Multivariate VaR Predicted vs Empirical",
+
      ylab = "VaR")
 lines(result, lty = 2, col = "blue")
 legend(80, y = -0.05, c("Actual", "Predicted"), lty = c(1,2), col = c("black", "blue"))
